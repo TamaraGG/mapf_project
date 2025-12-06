@@ -127,12 +127,25 @@ def run_centralized(scenario, config):
         planner.plan(agents, tick, tm)
         if tick % 5 == 0: lns.step(agents, tick)
         
+                # Шаг исполнения (ИСПРАВЛЕННАЯ ЛОГИКА)
         for a in agents:
-            if a.current_task and a.pos == a.current_task.goal_pos:
-                if a.current_task.id != -1: total_completed += 1
-                a.current_task = None
-                a.status = AgentStatus.IDLE
-                a.path = []
+            # Логика задач (Pickup -> Delivery)
+            if a.status == AgentStatus.WORKING and a.current_task:
+                # 1. Прибыли на точку старта (PICKUP)
+                if not a.has_picked_up and a.pos == a.current_task.start_pos:
+                    a.has_picked_up = True
+                    a.path = [] # Сброс пути, чтобы перепланировать к финишу
+                
+                # 2. Прибыли на точку финиша (DELIVERY)
+                elif a.has_picked_up and a.pos == a.current_task.goal_pos:
+                    if a.current_task.id != -1: # Не считаем доезд до зарядки
+                        total_completed += 1
+                    a.has_picked_up = False
+                    a.current_task = None
+                    a.status = AgentStatus.IDLE
+                    a.path = []
+            
+            # Физический шаг
             a.step(grid)
             
     duration = time.time() - start_time
