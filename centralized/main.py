@@ -31,8 +31,8 @@ SCENARIO_CONFIG = {
 }
 
 # !!! ВЫБЕРИТЕ СЦЕНАРИЙ ЗДЕСЬ !!!
-# CURRENT_SCENARIO = 'ADAPTABILITY_TEST' 
-CURRENT_SCENARIO = 'BASELINE'
+CURRENT_SCENARIO = 'ADAPTABILITY_TEST' 
+# CURRENT_SCENARIO = 'BASELINE'
 
 CONFIG = {
     "MAP_WIDTH": SCENARIO_CONFIG[CURRENT_SCENARIO]["MAP_SIZE"],
@@ -41,7 +41,7 @@ CONFIG = {
     "MAX_STEPS": 400,
     "SLEEP_TIME": 0.05, # 0.0 для максимальной скорости
     "WALL_DENSITY": 0.1,
-    "SAFETY_BUFFER": 40.0, 
+    "SAFETY_BUFFER": 10.0, 
     "GAMMA": 0.8,
     "CHARGER_CAPACITY": 2, 
     "USE_LNS": True
@@ -116,16 +116,41 @@ def generate_map(w, h, density):
         if 0 <= cx < w and 0 <= cy < h: grid[cy][cx] = 'C'
     return "\n".join("".join(row) for row in grid)
 
-def apply_shock_event(grid, agents):
+def apply_shock_event(grid, agents, task_manager):
     print(f"\n[{time.strftime('%H:%M:%S')}] !!! SHOCK EVENT: ОБВАЛ В ЦЕНТРЕ КАРТЫ !!!")
     center_x, center_y = grid.width // 2, grid.height // 2
     radius = 2
+    
+    affected_cells = []
     for y in range(center_y - radius, center_y + radius + 1):
         for x in range(center_x - radius, center_x + radius + 1):
-            if not grid.is_charger((x, y)):
-                agent_here = any(a.pos == (x, y) for a in agents)
-                if not agent_here:
+            if 0 <= x < grid.width and 0 <= y < grid.height:
+                if not grid.is_charger((x, y)):
                     grid.add_dynamic_obstacle(x, y)
+                    affected_cells.append((x, y))
+
+    # 1. Убиваем агентов, попавших под завал
+    for a in agents:
+        if a.pos in affected_cells:
+            if not a.is_dead:
+                print(f"[Shock] Агент {a.id} погиб под завалом в {a.pos}!")
+                a.status = AgentStatus.DEAD
+                a.path = []
+                a.current_task = None
+                a.battery = 0
+
+    # 2. Проверяем агентов, которые ехали В зону завала (но еще живы)
+    for a in agents:
+        if not a.is_dead and a.current_task:
+            # Если цель задачи теперь стена
+            if a.current_task.goal_pos in grid.obstacles:
+                print(f"[Shock] Агент {a.id} прервал задачу {a.current_task.id} (цель завалена)")
+                a.current_task = None
+                a.status = AgentStatus.IDLE
+                a.path = [] # Сброс пути, чтобы перепланировать
+
+    # 3. Чистим пул ожидающих задач
+    task_manager.clean_invalid_tasks()
 
 def main():
     # Инициализация
@@ -168,7 +193,7 @@ def main():
         
         # 1. Событие ШОКА (Адаптивность)
         if scenario_data["SHOCK_EVENT"] and tick == scenario_data["SHOCK_TICK"]:
-            apply_shock_event(grid, agents)
+            apply_shock_event(grid, agents, tm)
             # Сброс путей, чтобы агенты перепланировали
             for a in agents: a.path = []
 

@@ -52,5 +52,19 @@ class TaskManager:
                     agent.status = AgentStatus.WORKING
 
     def return_task(self, task: Task):
+
         if task and task.id != -1: 
             self.pending_tasks.appendleft(task)
+
+    def clean_invalid_tasks(self):
+        """Удаляет задачи, чьи старт или финиш оказались в препятствиях."""
+        valid_tasks = deque()
+        while self.pending_tasks:
+            task = self.pending_tasks.popleft()
+            # Проверяем, не стали ли точки препятствиями
+            if (task.start_pos in self.grid.obstacles or 
+                task.goal_pos in self.grid.obstacles):
+                print(f"[TaskMgr] Задача {task.id} отменена (зона заблокирована)")
+                continue
+            valid_tasks.append(task)
+        self.pending_tasks = valid_tasks
