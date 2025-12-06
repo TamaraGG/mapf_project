@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from scipy.spatial import distance
 from typing import List
-from agent_state import AgentState
+from decentralized.agent_state import AgentState
 
 class GraphBuilder:
     def __init__(self, config):

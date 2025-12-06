@@ -2,7 +2,8 @@ from collections import deque
 import random
 from dataclasses import dataclass
 from typing import Tuple, List
-from centralized.agent_state import AgentState, AgentStatus
+# Обратите внимание на импорт внутри пакета
+from common.agent_state import AgentState, AgentStatus
 
 @dataclass
 class Task:
@@ -20,7 +21,6 @@ class TaskManager:
 
     def spawn_random_task(self, current_time: int, agents: List[AgentState] = None):
         attempts = 0
-        # Увеличили кол-во попыток, чтобы на тесной карте находить место
         while attempts < 100:
             start = (random.randint(0, self.grid.width-1), random.randint(0, self.grid.height-1))
             if start in self.grid.obstacles or self.grid.is_charger(start):
@@ -30,7 +30,6 @@ class TaskManager:
             if goal in self.grid.obstacles or self.grid.is_charger(goal) or goal == start:
                 attempts += 1; continue
 
-            # Проверка, чтобы задача не спавнилась прямо под агентом (опционально, но полезно)
             if agents:
                 collision = False
                 for a in agents:
@@ -41,11 +40,10 @@ class TaskManager:
             self.pending_tasks.append(Task(self.task_counter, start, goal, random.random(), current_time))
             return
 
+    # --- МЕТОД ДЛЯ CENTRALIZED ---
     def assign_tasks(self, agents: List[AgentState]):
-        # Проходим по всем агентам, чтобы раздать задачи всем свободным
         for agent in agents:
             if agent.status == AgentStatus.IDLE and not agent.is_dead:
-                # Если батарея слишком слабая, задачу не даем (пусть едет на зарядку)
                 threshold = agent.profile.battery_capacity * 0.3
                 if agent.battery < threshold:
                     continue
@@ -54,6 +52,11 @@ class TaskManager:
                     task = self.pending_tasks.popleft()
                     agent.current_task = task
                     agent.status = AgentStatus.WORKING
+
+    # --- МЕТОД ДЛЯ DECENTRALIZED (RL) ---
+    def claim_task(self, task: Task):
+        if task in self.pending_tasks:
+            self.pending_tasks.remove(task)
 
     def return_task(self, task: Task):
         if task and task.id != -1: 
@@ -65,7 +68,7 @@ class TaskManager:
             task = self.pending_tasks.popleft()
             if (task.start_pos in self.grid.obstacles or 
                 task.goal_pos in self.grid.obstacles):
-                print(f"[TaskMgr] Задача {task.id} отменена (зона заблокирована)")
+                # print(f"[TaskMgr] Задача {task.id} отменена (зона заблокирована)")
                 continue
             valid_tasks.append(task)
         self.pending_tasks = valid_tasks

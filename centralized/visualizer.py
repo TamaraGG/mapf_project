@@ -1,6 +1,6 @@
 import pygame
 import sys
-from agent_state import AgentStatus
+from centralized.agent_state import AgentStatus
 
 CELL = 40
 MARGIN = 2
@@ -58,6 +58,10 @@ class PygameVisualizer:
                     pygame.draw.rect(self.screen, col, r, 2)
 
             pygame.draw.circle(self.screen, col, spx, CELL//2 - 4)
+            # Если несет груз - рисуем белую точку в центре
+            if a.has_picked_up:
+                pygame.draw.circle(self.screen, (255, 255, 255), spx, 4)
+
             if a.status == AgentStatus.CHARGING:
                 pygame.draw.circle(self.screen, (255,255,0), spx, CELL//2 - 4, 3)
             

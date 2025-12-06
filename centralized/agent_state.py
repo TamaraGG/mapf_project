@@ -4,10 +4,10 @@ from enum import Enum, auto
 
 class AgentStatus(Enum):
     IDLE = auto()
-    WORKING = auto()
-    TO_CHARGER = auto()
-    CHARGING = auto()
-    DEAD = auto()
+    WORKING = auto()      # Едет к задаче или выполняет её
+    TO_CHARGER = auto()   # Едет заряжаться
+    CHARGING = auto()     # Стоит на зарядке
+    DEAD = auto()         # Батарея 0
 
 @dataclass
 class AgentState:
@@ -18,6 +18,9 @@ class AgentState:
     status: AgentStatus = AgentStatus.IDLE
     path: List[Tuple[int, int, int]] = field(default_factory=list)
     current_task: Optional['Task'] = None # type: ignore
+    
+    # [НОВОЕ] Флаг: груз уже на борту?
+    has_picked_up: bool = False 
     total_energy_consumed: float = 0.0
 
     def __post_init__(self):
@@ -29,55 +32,49 @@ class AgentState:
 
     def assign_path(self, new_path: List[Tuple[int, int, int]]):
         self.path = new_path
-        if self.path and self.status == AgentStatus.IDLE:
-            self.status = AgentStatus.WORKING
 
     def step(self, grid_map):
         if self.status == AgentStatus.DEAD: return
 
         energy_cost = 0.0
         
+        # 1. Движение по пути
         if self.path:
-            # Извлекаем следующий шаг (он соответствует текущему тику симуляции)
+            # Берем следующую точку (t+1)
             next_node = self.path.pop(0)
             nx, ny, _ = next_node
             
-            # Проверяем: это движение или ожидание?
             if (nx, ny) != self.pos:
-                # ДВИЖЕНИЕ
-                has_payload = (self.current_task is not None and self.status == AgentStatus.WORKING)
-                energy_cost = self.profile.calculate_move_cost(has_payload)
+                # Реальное перемещение
+                # Груз учитываем только если мы WORKING и уже забрали его
+                carrying = (self.status == AgentStatus.WORKING and self.has_picked_up)
+                energy_cost = self.profile.calculate_move_cost(has_payload=carrying)
                 self.pos = (nx, ny)
             else:
-                # ОЖИДАНИЕ (даже если это часть пути)
-                # Агент стоит на месте, удерживая позицию (согласно wait_extension)
+                # Ожидание (Wait)
                 energy_cost = self.profile.idle_consumption
-                
-                # [ВАЖНО] Если мы достигли цели задачи, но путь продолжается (хвост),
-                # мы не должны тратить энергию как "WORKING" (с грузом), если груз уже сдан.
-                # Но логика сдачи груза обычно в main.py. 
-                # Здесь мы просто тратим idle_consumption, что верно для любого статуса.
         else:
-            # Путь кончился (или был пуст)
+            # Пути нет
             if self.status != AgentStatus.CHARGING:
                 energy_cost = self.profile.idle_consumption
-                # Если мы не заряжаемся и пути нет -> мы IDLE
-                if self.status != AgentStatus.DEAD:
-                    self.status = AgentStatus.IDLE
 
-        # --- Логика зарядки (исправленная по предыдущему замечанию) ---
+        # 2. Логика зарядки
         if grid_map.is_charger(self.pos):
+            # Если приехали заряжаться или просто стоим разряженные на зарядке
             if self.status == AgentStatus.TO_CHARGER:
                 self.status = AgentStatus.CHARGING
-            elif self.status == AgentStatus.IDLE and self.battery < self.profile.battery_capacity:
-                 self.status = AgentStatus.CHARGING
             
             if self.status == AgentStatus.CHARGING:
-                energy_cost = 0.0 # На зарядке энергия не тратится (или тратится, но восполняется)
+                # На зарядке потребление 0 (или компенсируется)
+                energy_cost = 0.0 
                 self.battery = min(self.battery + self.profile.charging_speed, self.profile.battery_capacity)
+                
+                # Если зарядились - освобождаем слот (статус IDLE)
                 if self.battery >= self.profile.battery_capacity:
                     self.status = AgentStatus.IDLE
+                    self.current_task = None # Сбрасываем задачу "ехать на зарядку"
 
+        # 3. Списание энергии
         self.battery -= energy_cost
         self.total_energy_consumed += energy_cost
 

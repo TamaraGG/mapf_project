@@ -1,6 +1,6 @@
 import math
 from typing import List, Tuple, Optional
-from agent_state import AgentState, AgentStatus
+from decentralized.agent_state import AgentState, AgentStatus
 
 class SafetyShield:
     def __init__(self, grid_map, config):

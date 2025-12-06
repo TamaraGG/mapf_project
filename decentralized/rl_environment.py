@@ -2,12 +2,12 @@ import numpy as np
 import random
 from typing import List, Dict, Any
 
-from grid_map import GridMap
-from agent_state import AgentState, AgentStatus
-from agent_profile import AGENT_PROFILES
-from task_manager import TaskManager
-from graph_builder import GraphBuilder
-from observation_builder import ObservationBuilder
+from common.grid_map import GridMap
+from decentralized.agent_state import AgentState, AgentStatus
+from common.agent_profile import AGENT_PROFILES
+from decentralized.task_manager import TaskManager
+from decentralized.graph_builder import GraphBuilder
+from decentralized.observation_builder import ObservationBuilder
 
 class RLEnvironment:
     def __init__(self, config: Dict[str, Any]):
