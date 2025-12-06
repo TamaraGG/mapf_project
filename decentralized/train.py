@@ -3,6 +3,7 @@ import time
 import torch
 import numpy as np
 from collections import deque
+import re
 
 # Попытка импорта WandB для логирования
 try:
@@ -54,34 +55,29 @@ CONFIG = {
     "EXP_NAME": "DEG-RL_Hard_Physics_v2" # Новое имя папки
 }
 
+# --- ПУТЬ К ФАЙЛУ ДЛЯ ВОЗОБНОВЛЕНИЯ ---
+# Укажите здесь путь к последнему .pth файлу на вашем Google Drive
+# Например:
+RESUME_PATH = "/content/drive/MyDrive/mapf_project/decentralized/checkpoints/DEG-RL_Hard_Physics_v2/model_step_614400.pth"
+# Если хотите начать заново, поставьте None
+# RESUME_PATH = None 
+
 def run_validation(trainer, num_steps=200):
-    """
-    Запускает прогон без шума (детерминированный) для оценки качества.
-    """
+    """Запускает прогон без шума (детерминированный) для оценки качества."""
     env = trainer.env
     obs, edge_index, mask = env.reset()
-    
-    # Перенос на устройство
     obs = torch.tensor(obs).to(trainer.device)
     mask = torch.tensor(mask).to(trainer.device)
     
     total_rewards = 0
     completed_tasks = 0
-    dead_agents = 0
-    
-    # Для валидации отключаем Shield Penalty в статистике (но Shield работает физически)
     
     for _ in range(num_steps):
         with torch.no_grad():
-            # deterministic=True -> выбираем действие с макс. вероятностью
             action, _, _, _ = trainer.model.get_action(
                 obs, edge_index, mask, deterministic=True
             )
-        
-        # Конвертация для среды
         cpu_actions = action.cpu().numpy().tolist()
-        
-        # Проверка Shield (он все равно нужен для безопасности)
         safe_actions = []
         for i, agent in enumerate(env.agents):
             if agent.is_dead:
@@ -91,22 +87,15 @@ def run_validation(trainer, num_steps=200):
             final_act, _ = trainer.shield.check_action(agent, cpu_actions[i], visible)
             safe_actions.append(final_act)
 
-        # Шаг среды
         next_obs_np, rewards, dones, infos = env.step(safe_actions)
-        
-        # Сбор статистики
         total_rewards += np.sum(rewards)
-        
-        # Подсчет выполненных задач (через бонус в награде или состояние агента)
-        # Здесь упрощенно: если награда большая, значит выполнил задачу
         completed_tasks += np.sum(rewards > 10.0) 
         
         obs = torch.tensor(next_obs_np[0]).to(trainer.device)
-        edge_index = next_obs_np[1] # Уже тензор
+        edge_index = next_obs_np[1]
         mask = torch.tensor(next_obs_np[2]).to(trainer.device)
         
-        if all(dones):
-            break
+        if all(dones): break
             
     dead_agents = sum([1 for a in env.agents if a.is_dead])
     survival_rate = (env.n_agents - dead_agents) / env.n_agents
@@ -118,22 +107,32 @@ def run_validation(trainer, num_steps=200):
     }
 
 def main():
-    # 1. Инициализация
     if WANDB_AVAILABLE:
-        wandb.init(
-            project="MAPF_Energy_RL",
-            name=CONFIG["EXP_NAME"],
-            config=CONFIG
-        )
+        wandb.init(project="MAPF_Energy_RL", name=CONFIG["EXP_NAME"], config=CONFIG, resume="allow")
     
-    # Создаем папку для моделей
-    # Создаем уникальную папку для этого эксперимента
     save_dir = os.path.join("checkpoints", CONFIG["EXP_NAME"])
     os.makedirs(save_dir, exist_ok=True)    
     
-    # Инициализация тренера
     trainer = PPOTrainer(CONFIG)
     
+    # --- ЛОГИКА ВОЗОБНОВЛЕНИЯ ---
+    start_update = 1
+    if RESUME_PATH and os.path.exists(RESUME_PATH):
+        print(f"Resuming training from: {RESUME_PATH}")
+        trainer.load_model(RESUME_PATH)
+        
+        # Пытаемся вытащить номер шага из названия файла
+        # Ищем число после 'step_'
+        match = re.search(r"step_(\d+)", RESUME_PATH)
+        if match:
+            steps_done = int(match.group(1))
+            start_update = steps_done // CONFIG["NUM_STEPS"] + 1
+            print(f"Resuming from update {start_update} (Step {steps_done})")
+        else:
+            print("Could not parse step number from filename. Starting from update 1.")
+    else:
+        print("Starting training from scratch...")
+
     # Начальный сброс среды
     obs, edge_index, mask = trainer.env.reset()
     obs = torch.tensor(obs).to(trainer.device)
@@ -142,48 +141,33 @@ def main():
     num_updates = CONFIG["TOTAL_TIMESTEPS"] // CONFIG["NUM_STEPS"]
     start_time = time.time()
     
-    print(f"Starting training for {num_updates} updates...")
-
-    # --- ВНЕШНИЙ ЦИКЛ ОБУЧЕНИЯ ---
-    for update in range(1, num_updates + 1):
+    # --- ЦИКЛ ОБУЧЕНИЯ (С учетом start_update) ---
+    for update in range(start_update, num_updates + 1):
         
-        # 2. Сбор данных (Rollout)
-        # Передаем текущее состояние, получаем буфер и новое состояние
         buffer = trainer.collect_rollouts(obs, edge_index, mask)
-        
-        # Обновляем переменные состояния для следующего цикла
         obs = buffer['next_obs']
         edge_index = buffer['next_edge_index']
         mask = buffer['next_action_mask']
         
-        # 3. Расчет GAE
         advantages, returns = trainer.compute_gae(buffer)
-        
-        # 4. Обновление политики (PPO Update)
         train_metrics = trainer.update_policy(buffer, advantages, returns)
         
-        # Расчет метрик обучения (из буфера)
         train_rewards = [t.cpu().numpy() for t in buffer['rewards']]
-        avg_train_reward = np.mean(np.sum(train_rewards, axis=0)) # Сумма за эпизод (роллаут)
+        avg_train_reward = np.mean(np.sum(train_rewards, axis=0))
         
-        # 5. Валидация
         val_metrics = {}
         if update % CONFIG["VALIDATION_FREQ"] == 0:
             print(f"Validating at update {update}...")
             val_metrics = run_validation(trainer)
             print(f"Validation Results: {val_metrics}")
-            
 
-        # 6. Логирование
         logs = {
             "global_step": update * CONFIG["NUM_STEPS"],
             "train/loss": train_metrics["loss"],
-            "train/value_loss": train_metrics["v_loss"],
-            "train/entropy": train_metrics["entropy"],
             "train/mean_reward": avg_train_reward,
-            "time/fps": int((update * CONFIG["NUM_STEPS"]) / (time.time() - start_time))
+            "time/fps": int((update * CONFIG["NUM_STEPS"]) / (time.time() - start_time + 1e-5))
         }
-        logs.update(val_metrics) # Добавляем метрики валидации, если они есть
+        logs.update(val_metrics)
         
         if WANDB_AVAILABLE:
             wandb.log(logs)
@@ -191,13 +175,10 @@ def main():
             if update % 10 == 0:
                 print(f"Update {update} | Loss: {train_metrics['loss']:.3f} | Reward: {avg_train_reward:.1f}")
 
-        # 7. Сохранение
         if update % CONFIG["CHECKPOINT_FREQ"] == 0:
-            # Сохраняем внутрь save_dir
             path = os.path.join(save_dir, f"model_step_{logs['global_step']}.pth")
             trainer.save_model(path)
 
-    # Финальное сохранение
     trainer.save_model(os.path.join(save_dir, "model_final.pth"))
 
 if __name__ == "__main__":
