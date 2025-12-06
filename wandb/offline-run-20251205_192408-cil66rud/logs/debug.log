@@ -1,0 +1,36 @@
+2025-12-05 19:24:08,010 INFO    MainThread:8068 [wandb_setup.py:_flush():80] Current SDK version is 0.23.1
+2025-12-05 19:24:08,010 INFO    MainThread:8068 [wandb_setup.py:_flush():80] Configure stats pid to 8068
+2025-12-05 19:24:08,010 INFO    MainThread:8068 [wandb_setup.py:_flush():80] Loading settings from C:\Users\Admin\.config\wandb\settings
+2025-12-05 19:24:08,010 INFO    MainThread:8068 [wandb_setup.py:_flush():80] Loading settings from C:\Users\Admin\Desktop\mapf_project\wandb\settings
+2025-12-05 19:24:08,011 INFO    MainThread:8068 [wandb_setup.py:_flush():80] Loading settings from environment variables
+2025-12-05 19:24:08,011 INFO    MainThread:8068 [wandb_init.py:setup_run_log_directory():714] Logging user logs to C:\Users\Admin\Desktop\mapf_project\wandb\offline-run-20251205_192408-cil66rud\logs\debug.log
+2025-12-05 19:24:08,012 INFO    MainThread:8068 [wandb_init.py:setup_run_log_directory():715] Logging internal logs to C:\Users\Admin\Desktop\mapf_project\wandb\offline-run-20251205_192408-cil66rud\logs\debug-internal.log
+2025-12-05 19:24:08,012 INFO    MainThread:8068 [wandb_init.py:init():841] calling init triggers
+2025-12-05 19:24:08,012 INFO    MainThread:8068 [wandb_init.py:init():846] wandb.init called with sweep_config: {}
+config: {'MAP_WIDTH': 10, 'MAP_HEIGHT': 10, 'NUM_AGENTS': 4, 'WALL_DENSITY': 0.0, 'COMM_RADIUS': 20.0, 'K_VISIBLE_TASKS': 3, 'TOTAL_TIMESTEPS': 500000, 'NUM_STEPS': 128, 'BATCH_SIZE': 64, 'LR': 0.0003, 'GAMMA': 0.99, 'GAE_LAMBDA': 0.95, 'CLIP_COEF': 0.2, 'ENT_COEF': 0.05, 'VF_COEF': 0.5, 'MAX_GRAD_NORM': 0.5, 'UPDATE_EPOCHS': 4, 'W1_PROGRESS': 0.5, 'W2_ENERGY': 0.0, 'W3_FEAR': 2.0, 'REWARD_BONUS': 100.0, 'BATTERY_THRESHOLD': 0.3, 'SHIELD_PENALTY': 1.0, 'DEVICE': 'cpu', 'SEED': 42, 'CHECKPOINT_FREQ': 50, 'VALIDATION_FREQ': 20, 'EXP_NAME': 'DEG-RL_Easy_Mode', '_wandb': {}}
+2025-12-05 19:24:08,013 INFO    MainThread:8068 [wandb_init.py:init():889] starting backend
+2025-12-05 19:24:13,517 INFO    MainThread:8068 [wandb_init.py:init():892] sending inform_init request
+2025-12-05 19:24:13,601 INFO    MainThread:8068 [wandb_init.py:init():900] backend started and connected
+2025-12-05 19:24:14,098 INFO    MainThread:8068 [wandb_init.py:init():970] updated telemetry
+2025-12-05 19:24:14,101 INFO    MainThread:8068 [wandb_init.py:init():994] communicating run to backend with 90.0 second timeout
+2025-12-05 19:24:14,112 INFO    MainThread:8068 [wandb_init.py:init():1041] starting run threads in backend
+2025-12-05 19:24:18,953 INFO    MainThread:8068 [wandb_run.py:_console_start():2521] atexit reg
+2025-12-05 19:24:18,953 INFO    MainThread:8068 [wandb_run.py:_redirect():2369] redirect: wrap_raw
+2025-12-05 19:24:18,954 INFO    MainThread:8068 [wandb_run.py:_redirect():2438] Wrapping output streams.
+2025-12-05 19:24:18,954 INFO    MainThread:8068 [wandb_run.py:_redirect():2461] Redirects installed.
+2025-12-05 19:24:19,052 INFO    MainThread:8068 [wandb_init.py:init():1081] run started, returning control to user process
+2025-12-05 20:06:46,644 INFO    wandb-AsyncioManager-main:8068 [service_client.py:_forward_responses():80] Reached EOF.
+2025-12-05 20:06:46,675 INFO    wandb-AsyncioManager-main:8068 [mailbox.py:close():137] Closing mailbox, abandoning 0 handles.
+2025-12-05 20:06:49,795 ERROR   wandb-AsyncioManager-main:8068 [asyncio_manager.py:fn_wrap_exceptions():183] Uncaught exception in run_soon callback.
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\wandb\sdk\lib\asyncio_manager.py", line 181, in fn_wrap_exceptions
+    await fn()
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\wandb\sdk\lib\service\service_client.py", line 38, in publish
+    await self._send_server_request(request)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\wandb\sdk\lib\service\service_client.py", line 64, in _send_server_request
+    await self._writer.drain()
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\asyncio\streams.py", line 392, in drain
+    await self._protocol._drain_helper()
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python311\Lib\asyncio\streams.py", line 166, in _drain_helper
+    raise ConnectionResetError('Connection lost')
+ConnectionResetError: Connection lost
