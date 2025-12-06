@@ -31,34 +31,44 @@ class GridMap:
     def _compute_charger_distances(self):
         """Запускает BFS от всех зарядок одновременно, чтобы найти реальное расстояние и координаты ближайшей."""
         queue = deque()
+        self.charger_dist_map.clear()
+        self.nearest_charger_map.clear()
         
         # Инициализация BFS от всех зарядок
         for c in self.chargers_list:
             queue.append((c, 0))
             self.charger_dist_map[c] = 0
-            self.nearest_charger_map[c] = c # Ближайшая зарядка к самой зарядке - это она сама
+            self.nearest_charger_map[c] = c 
         
         visited = set(self.chargers_list)
         
         while queue:
             curr_node, dist = queue.popleft()
-            cx, cy = curr_node
             
-            # Узнаем, какая зарядка является ближайшей для текущей клетки
+            # Если вдруг мы попали в недостижимую точку (защита)
+            if curr_node not in self.nearest_charger_map:
+                continue
+
             root_charger = self.nearest_charger_map[curr_node]
             
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                nx, ny = cx + dx, cy + dy
+                nx, ny = curr_node[0] + dx, curr_node[1] + dy
                 if 0 <= nx < self.width and 0 <= ny < self.height:
                     if (nx, ny) not in self.obstacles and (nx, ny) not in visited:
                         visited.add((nx, ny))
-                        
-                        # Записываем дистанцию
                         self.charger_dist_map[(nx, ny)] = dist + 1
-                        # Записываем ту же зарядку, что и у родителя
                         self.nearest_charger_map[(nx, ny)] = root_charger
-                        
                         queue.append(((nx, ny), dist + 1))
+
+    def add_dynamic_obstacle(self, x: int, y: int):
+        """Добавляет препятствие в рантайме и пересчитывает карту расстояний."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            # Не ставим препятствие на зарядку
+            if self.is_charger((x, y)): return
+            
+            self.obstacles.add((x, y))
+            # ВАЖНО: Пересчитываем расстояния, так как старые пути могут быть перекрыты
+            self._compute_charger_distances()
 
     def get_neighbors(self, node: Node) -> List[Node]:
         x, y = node
