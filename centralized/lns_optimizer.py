@@ -1,7 +1,7 @@
 import random
 import copy
 from typing import List
-from centralized.agent_state import AgentState, AgentStatus
+from common.agent_state import AgentState, AgentStatus
 
 class LNSOptimizer:
     def __init__(self, planner, energy_lambda=0.5):

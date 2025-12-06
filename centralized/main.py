@@ -6,12 +6,12 @@ from typing import List
 
 from common.grid_map import GridMap
 from common.agent_profile import AGENT_PROFILES
-from agent_state import AgentState, AgentStatus
+from common.agent_state import AgentState, AgentStatus
 from reservation_table import ReservationTable
 from task_manager import TaskManager
 from central_planner import CentralPlanner
 from lns_optimizer import LNSOptimizer
-from visualizer import PygameVisualizer
+from common.visualizer import PygameVisualizer
 
 # --- КОНФИГУРАЦИЯ СЦЕНАРИЕВ ---
 SCENARIO_CONFIG = {

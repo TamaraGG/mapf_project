@@ -1,10 +1,10 @@
 import math
 from typing import List, Tuple, Dict
-from centralized.agent_state import AgentState, AgentStatus
-from centralized.grid_map import GridMap
+from common.agent_state import AgentState, AgentStatus
+from common.grid_map import GridMap
 from centralized.reservation_table import ReservationTable
 from centralized.a_star_solver import EnergyAwareAStar
-from centralized.task_manager import TaskManager, Task
+from common.task_manager import TaskManager, Task
 
 class CentralPlanner:
     def __init__(self, 

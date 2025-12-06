@@ -1,6 +1,6 @@
 import heapq
 from typing import List, Tuple, Optional
-from centralized.node import Node
+from common.node import Node
 
 def get_neighbors(current_node, grid, reservation_table, profile, goal_pos, safety_buffer, energy_lambda, charger_capacity, has_payload):
     neighbors = []

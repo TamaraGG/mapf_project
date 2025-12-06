@@ -1,6 +1,6 @@
 import pygame
 import sys
-from agent_state import AgentStatus
+from common.agent_state import AgentStatus
 
 CELL = 40
 MARGIN = 2

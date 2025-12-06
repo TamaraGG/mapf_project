@@ -8,7 +8,7 @@ import sys
 from rl_environment import RLEnvironment
 from model import ActorCritic
 from safety_shield import SafetyShield
-from visualizer import PygameVisualizer 
+from common.visualizer import PygameVisualizer 
 
 # --- КОНФИГУРАЦИЯ (Должна совпадать с обучением!) ---
 CONFIG = {

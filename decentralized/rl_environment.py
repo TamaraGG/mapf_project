@@ -3,7 +3,7 @@ import random
 from typing import List, Dict, Any
 
 from common.grid_map import GridMap
-from decentralized.agent_state import AgentState, AgentStatus
+from common.agent_state import AgentState, AgentStatus
 from common.agent_profile import AGENT_PROFILES
 from decentralized.task_manager import TaskManager
 from decentralized.graph_builder import GraphBuilder

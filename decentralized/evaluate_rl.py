@@ -10,8 +10,8 @@ import pygame # Нужен для визуализации
 from rl_environment import RLEnvironment
 from model import ActorCritic
 from safety_shield import SafetyShield
-from agent_state import AgentStatus
-from visualizer import PygameVisualizer # Импортируем визуализатор
+from common.agent_state import AgentStatus
+from common.visualizer import PygameVisualizer # Импортируем визуализатор
 
 # --- КОНФИГУРАЦИЯ СЦЕНАРИЕВ ---
 SCENARIO_CONFIG = {

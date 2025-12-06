@@ -12,7 +12,7 @@ class GridMap:
         self.chargers_list: List[Node] = []
         self.chargers_set: Set[Node] = set()
         
-        # Кэши
+        # Кэши для быстрой навигации
         self.charger_dist_map: Dict[Node, int] = {}
         self.nearest_charger_map: Dict[Node, Node] = {} 
 
@@ -24,50 +24,72 @@ class GridMap:
                     self.chargers_list.append((x, y))
                     self.chargers_set.add((x, y))
         
+        # Предварительный расчет расстояний
         self._compute_charger_distances()
 
     def _compute_charger_distances(self):
-        """BFS от всех зарядок одновременно."""
-        # --- ИСПРАВЛЕНИЕ: Очищаем старые данные перед пересчетом ---
+        """Запускает BFS от всех зарядок одновременно."""
         self.charger_dist_map.clear()
         self.nearest_charger_map.clear()
         
         queue = deque()
+        # Инициализация BFS от всех зарядок (дистанция 0)
         for c in self.chargers_list:
             queue.append((c, 0))
             self.charger_dist_map[c] = 0
-            self.nearest_charger_map[c] = c
+            self.nearest_charger_map[c] = c 
         
         visited = set(self.chargers_list)
         
         while queue:
             curr_node, dist = queue.popleft()
+            
+            # Защита от изолированных островов
+            if curr_node not in self.nearest_charger_map:
+                continue
+
             root_charger = self.nearest_charger_map[curr_node]
             
-            cx, cy = curr_node
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                nx, ny = cx + dx, cy + dy
+                nx, ny = curr_node[0] + dx, curr_node[1] + dy
                 if 0 <= nx < self.width and 0 <= ny < self.height:
                     if (nx, ny) not in self.obstacles and (nx, ny) not in visited:
                         visited.add((nx, ny))
                         self.charger_dist_map[(nx, ny)] = dist + 1
                         self.nearest_charger_map[(nx, ny)] = root_charger
                         queue.append(((nx, ny), dist + 1))
-                        
+
     def add_dynamic_obstacle(self, x: int, y: int):
         """Добавляет препятствие в рантайме и пересчитывает карту расстояний."""
         if 0 <= x < self.width and 0 <= y < self.height:
-            # Не ставим препятствие на зарядку
             if self.is_charger((x, y)): return
             
             self.obstacles.add((x, y))
             # ВАЖНО: Пересчитываем расстояния, так как старые пути могут быть перекрыты
             self._compute_charger_distances()
 
+    def get_neighbors(self, node: Node) -> List[Node]:
+        x, y = node
+        res = []
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < self.width and 0 <= ny < self.height:
+                if (nx, ny) not in self.obstacles:
+                    res.append((nx, ny))
+        return res
+
     def get_heuristic(self, a: Node, b: Node) -> float:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+    # --- МЕТОДЫ, КОТОРЫЕ ВЫЗВАЛИ ОШИБКУ ---
+    
+    def get_nearest_charger_dist(self, node: Node) -> float:
+        """Возвращает реальное расстояние (в шагах) до ближайшей зарядки. Используется CentralPlanner."""
+        if not self.chargers_list: return float('inf')
+        return self.charger_dist_map.get(node, float('inf'))
+    
     def get_nearest_charger_pos(self, node: Node) -> Optional[Node]:
+        """Возвращает координаты (x, y) ближайшей зарядки. Используется RL и CentralPlanner."""
         if not self.chargers_list: return None
         return self.nearest_charger_map.get(node, None)
 

@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List
-from decentralized.agent_state import AgentState, AgentStatus
+from common.agent_state import AgentState, AgentStatus
 
 class ObservationBuilder:
     def __init__(self, grid_map, task_manager, config):
