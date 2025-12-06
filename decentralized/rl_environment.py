@@ -76,9 +76,18 @@ class RLEnvironment:
         dones = np.zeros(self.n_agents, dtype=bool)
         infos = [{} for _ in range(self.n_agents)]
         
-        # 1. Интерпретация действий (Определение next_target)
+        # 1. Интерпретация действий
         for i, agent in enumerate(self.agents):
             if agent.is_dead: continue
+            
+            # --- ИСПРАВЛЕНИЕ 1: Блокировка на зарядке ---
+            # Если агент уже заряжается и не полон - он игнорирует нейросеть и стоит
+            if agent.status == AgentStatus.CHARGING:
+                if agent.battery < agent.profile.battery_capacity:
+                    agent.target_pos = agent.pos # Стоять на месте
+                    continue # Пропускаем выбор действия
+                else:
+                    agent.status = AgentStatus.IDLE # Зарядился, можно ехать
             
             action = actions[i]
             target = None
@@ -89,31 +98,24 @@ class RLEnvironment:
                 target = self.grid.get_nearest_charger_pos(agent.pos)
                 if target is None: target = agent.pos
                 agent.status = AgentStatus.TO_CHARGER 
-            else: # Task (Action >= 2)
+            else: # Task
                 if agent.current_task:
-                    # Если задача уже есть, продолжаем ее выполнять
-                    # ВАЖНО: Проверяем статус. Если WORKING - везем на финиш.
-                    # Если IDLE (но задача есть) - едем на старт забирать.
                     if agent.status == AgentStatus.WORKING:
                         target = agent.current_task.goal_pos
                     else:
                         target = agent.current_task.start_pos
                 else:
-                    # Пытаемся взять новую задачу
                     task_idx = action - 2
                     visible = self.obs_builder.find_k_nearest_tasks(agent)
                     if task_idx < len(visible):
                         selected_task = visible[task_idx]
-                        
-                        # Проверяем, свободна ли задача
                         if selected_task in self.task_manager.pending_tasks:
                             agent.current_task = selected_task
                             self.task_manager.claim_task(selected_task)
-                            
                             target = selected_task.start_pos
-                            agent.status = AgentStatus.IDLE # Едем к старту
+                            agent.status = AgentStatus.IDLE 
                         else:
-                            target = agent.pos # Задачу увели
+                            target = agent.pos 
                     else:
                         target = agent.pos
 
@@ -130,14 +132,16 @@ class RLEnvironment:
                 dist_before = self.grid.get_heuristic(agent.pos, agent.target_pos)
 
             moved = False
+            # Пытаемся двигаться, только если цель не достигнута
             if agent.target_pos and agent.target_pos != agent.pos:
                 moved = self._move_greedy(agent, agent.target_pos)
 
-            # Расход зависит от наличия груза (WORKING)
             has_payload = (agent.status == AgentStatus.WORKING)
             e_cost = agent.profile.calculate_move_cost(has_payload) if moved else agent.profile.idle_consumption
 
             agent.battery -= e_cost
+            agent.total_energy_consumed += e_cost
+            
             if agent.battery <= 0:
                 agent.battery = 0
                 agent.status = AgentStatus.DEAD
@@ -148,25 +152,32 @@ class RLEnvironment:
             # --- БЛОК 3: ОБРАБОТКА СОБЫТИЙ ---
             reward_bonus = 0.0
             
-            # А. ЗАРЯДКА
+            # А. ЗАРЯДКА (Исправленная логика)
             if self.grid.is_charger(agent.pos):
-                if actions[i] == 1 or agent.status == AgentStatus.TO_CHARGER or agent.battery < agent.profile.battery_capacity:
+                # Если мы приехали на зарядку (по действию или нужде)
+                should_charge = (actions[i] == 1) or \
+                                (agent.status == AgentStatus.TO_CHARGER) or \
+                                (agent.battery < agent.profile.battery_capacity * 0.95) # Гистерезис
+                
+                if should_charge:
+                    agent.status = AgentStatus.CHARGING # Входим в режим зарядки
                     agent.battery = min(agent.battery + agent.profile.charging_speed, agent.profile.battery_capacity)
-                    agent.status = AgentStatus.IDLE
+                    
+                    # Если зарядились полностью - освобождаемся
+                    if agent.battery >= agent.profile.battery_capacity:
+                        agent.status = AgentStatus.IDLE
 
             # Б. PICKUP / DELIVERY
             if agent.current_task:
-                # 1. DELIVERY (Сдача груза)
                 if agent.status == AgentStatus.WORKING and agent.pos == agent.current_task.goal_pos:
                     reward_bonus = self.bonus
                     agent.current_task = None
                     agent.status = AgentStatus.IDLE
                     self.task_manager.spawn_random_task(0) 
 
-                # 2. PICKUP (Взятие груза)
                 elif agent.status != AgentStatus.WORKING and agent.pos == agent.current_task.start_pos:
-                    agent.status = AgentStatus.WORKING # Теперь мы с грузом
-                    reward_bonus += 1.0 # Малый бонус за взятие
+                    agent.status = AgentStatus.WORKING 
+                    reward_bonus += 1.0 
 
             # 4. Награда
             dist_after = 0
@@ -218,34 +229,73 @@ class RLEnvironment:
         
         return (obs_tensor, edge_index, masks)
 
+        
     def _move_greedy(self, agent, target):
         if agent.pos == target: return False
+        
+        # Все возможные ходы
+        candidates = []
         cx, cy = agent.pos
-        best_pos = agent.pos
-        min_h = self.grid.get_heuristic(agent.pos, target)
-        moved = False
         
-        moves = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-        random.shuffle(moves)
+        # Перемешиваем направления, чтобы при равных условиях не было приоритета "вверх"
+        deltas = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        random.shuffle(deltas)
         
-        for dx, dy in moves:
+        for dx, dy in deltas:
             nx, ny = cx + dx, cy + dy
+            
+            # 1. Проверка границ
             if not (0 <= nx < self.width and 0 <= ny < self.height): continue
+            # 2. Проверка стен
             if (nx, ny) in self.grid.obstacles: continue
             
+            # 3. Проверка других агентов (Коллизии)
             collision = False
             for other in self.agents:
-                if other.id != agent.id and other.pos == (nx, ny) and not other.is_dead:
-                    collision = True; break
+                if other.id != agent.id and not other.is_dead:
+                    if other.pos == (nx, ny): # Клетка занята
+                        collision = True
+                        break
+                    # Простейшая защита от swap-конфликта (обмен местами)
+                    # Если другой агент хочет пойти в мою клетку, а я в его - это авария.
+                    # Но здесь мы знаем только текущие позиции.
             if collision: continue
             
+            # Считаем эвристику до цели
             h = self.grid.get_heuristic((nx, ny), target)
-            if h < min_h:
-                min_h = h
-                best_pos = (nx, ny)
-                moved = True
+            candidates.append(((nx, ny), h))
         
-        if moved:
+        if not candidates:
+            return False # Тупик, некуда идти
+            
+        # Сортируем кандидатов по эвристике (от меньшего к большему)
+        candidates.sort(key=lambda x: x[1])
+        
+        # Текущее расстояние
+        current_h = self.grid.get_heuristic(agent.pos, target)
+        
+        # Берем лучший вариант
+        best_pos, best_h = candidates[0]
+        
+        # --- ИСПРАВЛЕНИЕ 2: Разрешаем движение, если не стало хуже ---
+        # Раньше было: if best_h < current_h.
+        # Теперь: if best_h <= current_h.
+        # Это позволяет агенту делать шаги в сторону (обходить препятствия),
+        # не приближаясь, но и не отдаляясь.
+        
+        if best_h <= current_h:
             agent.pos = best_pos
             return True
+            
+        # Если все варианты ведут назад (best_h > current_h),
+        # агент попал в "чашу" (локальный минимум).
+        # В простом greedy он застрянет.
+        # Можно разрешить случайный шаг с малой вероятностью (Random Walk),
+        # чтобы выбраться из тупика.
+        if random.random() < 0.1: # 10% шанс сделать "плохой" ход, чтобы разблокироваться
+             agent.pos = best_pos
+             return True
+             
         return False
+
+  

@@ -28,6 +28,10 @@ class GridMap:
 
     def _compute_charger_distances(self):
         """BFS от всех зарядок одновременно."""
+        # --- ИСПРАВЛЕНИЕ: Очищаем старые данные перед пересчетом ---
+        self.charger_dist_map.clear()
+        self.nearest_charger_map.clear()
+        
         queue = deque()
         for c in self.chargers_list:
             queue.append((c, 0))
@@ -49,6 +53,16 @@ class GridMap:
                         self.charger_dist_map[(nx, ny)] = dist + 1
                         self.nearest_charger_map[(nx, ny)] = root_charger
                         queue.append(((nx, ny), dist + 1))
+                        
+    def add_dynamic_obstacle(self, x: int, y: int):
+        """Добавляет препятствие в рантайме и пересчитывает карту расстояний."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            # Не ставим препятствие на зарядку
+            if self.is_charger((x, y)): return
+            
+            self.obstacles.add((x, y))
+            # ВАЖНО: Пересчитываем расстояния, так как старые пути могут быть перекрыты
+            self._compute_charger_distances()
 
     def get_heuristic(self, a: Node, b: Node) -> float:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])

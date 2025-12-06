@@ -27,6 +27,7 @@ class PygameVisualizer:
         
         self.screen.fill(COLORS['BG'])
 
+        # Отрисовка карты
         for y in range(self.grid.height):
             for x in range(self.grid.width):
                 rect = pygame.Rect(MARGIN+x*(CELL+MARGIN), MARGIN+y*(CELL+MARGIN), CELL, CELL)
@@ -37,34 +38,45 @@ class PygameVisualizer:
                 if col == COLORS['CHG']:
                     self.screen.blit(self.font.render("C", True, (0,0,0)), (rect.centerx-4, rect.centery-8))
 
+        # Отрисовка задач
         for t in task_manager.pending_tasks:
-            # ИСПРАВЛЕНИЕ: Рисуем незанятую задачу в точке СТАРТА
             px, py = self._to_px(t.start_pos) 
             r = pygame.Rect(0,0, CELL-14, CELL-14)
             r.center = (px, py)
-            # Рисуем как квадрат с обводкой
             pygame.draw.rect(self.screen, COLORS['TASK'], r, 2)
 
+        # Отрисовка агентов
         for a in agents:
             if a.is_dead: continue
             col = self._get_col(a)
             spx = self._to_px(a.pos)
             
-            if a.current_task:
-                epx = self._to_px(a.current_task.goal_pos)
+            # --- ИСПРАВЛЕНИЕ: Рисуем линию к target_pos, если он есть ---
+            # target_pos устанавливается в rl_environment.py и evaluate_rl.py
+            target = getattr(a, 'target_pos', None)
+            
+            if target and target != a.pos:
+                epx = self._to_px(target)
+                
+                # Цвет линии: Желтый если на зарядку, иначе цвет агента
                 line_col = (255, 255, 0) if a.status == AgentStatus.TO_CHARGER else col
+                
                 pygame.draw.line(self.screen, line_col, spx, epx, 2)
-                if a.status != AgentStatus.TO_CHARGER:
+                
+                # Рисуем квадратик цели, если это не зарядка (зарядка и так зеленая)
+                if not self.grid.is_charger(target):
                     r = pygame.Rect(0,0, CELL-10, CELL-10)
                     r.center = epx
                     pygame.draw.rect(self.screen, col, r, 2)
 
+            # Круг агента
             pygame.draw.circle(self.screen, col, spx, CELL//2 - 4)
             if a.status == AgentStatus.CHARGING:
                 pygame.draw.circle(self.screen, (255,255,0), spx, CELL//2 - 4, 3)
             
             self.screen.blit(self.font.render(str(a.id), True, (255,255,255)), (spx[0]-4, spx[1]-8))
 
+            # Полоска HP
             fill = max(0, min(1, a.battery / a.profile.battery_capacity))
             hc = (0,255,0) if fill > 0.5 else (255,0,0)
             pygame.draw.rect(self.screen, (0,0,0), (spx[0]-12, spx[1]+6, 24, 4))

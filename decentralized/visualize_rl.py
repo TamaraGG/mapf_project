@@ -15,18 +15,18 @@ CONFIG = {
     "MAP_WIDTH": 10,          
     "MAP_HEIGHT": 10,         
     "NUM_AGENTS": 4,          
-    "WALL_DENSITY": 0.0,      
-    "COMM_RADIUS": 20.0,
-    "K_VISIBLE_TASKS": 3,
+    "WALL_DENSITY": 0.1,      
+    "COMM_RADIUS": 10.0,
+    "K_VISIBLE_TASKS": 5,
     
     # Сброшены до 0, т.к. не влияют на детерминированную визуализацию
     "W1_PROGRESS": 0.0, "W2_ENERGY": 0.0, "W3_FEAR": 0.0, 
-    "REWARD_BONUS": 0.0, "BATTERY_THRESHOLD": 0.3, "SHIELD_PENALTY": 0.0,
+    "REWARD_BONUS": 50.0, "BATTERY_THRESHOLD": 0.3, "SHIELD_PENALTY": 0.0,
     "DEVICE": "cpu" 
 }
 
 # ПУТЬ К ВАШЕМУ "ЗОЛОТОМУ" ЧЕКПОИНТУ
-MODEL_PATH = "decentralized\models\model_step_70400.pth" 
+MODEL_PATH = "decentralized\models\model_step_972800.pth" 
 
 def main():
     # 1. Инициализация среды и модели
